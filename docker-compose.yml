@@ -1,0 +1,277 @@
+#########
+services:
+#########
+
+
+###############################################################
+   cn-nextcloud-website:
+      # ----------------------------------------------------- #
+      image: 'ghcr.io/pikatsuto/nextcloud:latest'
+      container_name: 'cn-nextcloud-website'
+      hostname: 'cn-nextcloud-website'
+      # ----------------------------------------------------- #
+      restart: 'always'
+      # ----------------------------------------------------- #
+      dns:
+         - '1.1.1.1'
+         - '1.0.0.1'
+      # ----------------------------------------------------- #
+      deploy:
+         resources:
+            limits:
+               cpus: '1'
+               memory: '1024M'
+      # ----------------------------------------------------- #
+      depends_on:
+         cn-nextcloud-postgres:
+            condition: 'service_healthy'
+         # -------------------------------------------------- #
+         cn-nextcloud-collabora:
+            condition: 'service_healthy'
+         # -------------------------------------------------- #
+         cn-nextcloud-redis:
+            condition: 'service_healthy'
+      # ----------------------------------------------------- #
+      environment:
+         PUID: 1000
+         PGID: 1000
+         TZ: 'Europe/Paris'
+         # -------------------------------------------------- #
+         NEXTCLOUD_ADMIN_USER: '${NEXTCLOUD_ADMIN_USER}'
+         NEXTCLOUD_ADMIN_PASSWORD: '${NEXTCLOUD_ADMIN_PASSWORD}'
+         # -------------------------------------------------- #
+         POSTGRES_HOST: 'db'
+         POSTGRES_DB: 'nextcloud'
+         POSTGRES_USER: 'nextcloud'
+         POSTGRES_PASSWORD: '${POSTGRES_PASSWORD}'
+         # -------------------------------------------------- #
+         REDIS_HOST: 'redis'
+         REDIS_HOST_PASSWORD: '${REDIS_PASSWORD}'
+         # -------------------------------------------------- #
+         PHP_MEMORY_LIMIT: '4096M'
+         PHP_UPLOAD_LIMIT: '16384M'
+         APACHE_BODY_LIMIT: '0'
+         # -------------------------------------------------- #
+         NEXTCLOUD_TRUSTED_DOMAINS: '${NEXTCLOUD_DOMAIN}'
+         OVERWRITEPROTOCOL: 'https'
+         OVERWRITEHOST: '${NEXTCLOUD_DOMAIN}'
+         OVERWRITECLIURL: 'https://${NEXTCLOUD_DOMAIN}'
+         TRUSTED_PROXIES: '${TRUSTED_PROXIES}'
+         NEXTCLOUD_INIT_HTACCESS: 'true'
+         APACHE_DISABLE_REWRITE_IP: '1'
+         # -------------------------------------------------- #
+         NEXTCLOUD_DEFAULT_PHONE_REGION: 'FR'
+         NEXTCLOUD_MAINTENANCE_WINDOW_START: '1'
+         # Passed through so the richdocuments hook can wire the connector
+         # to this stack's Collabora, generically, at deploy time.
+         COLLABORA_DOMAIN: '${COLLABORA_DOMAIN}'
+         # --- High Performance Backend (notify_push) --------- #
+         # Consumed by supervisord.conf (%(ENV_...)s).
+         NOTIFY_PUSH_PORT: '7867'
+         NOTIFY_PUSH_DB_PREFIX: 'oc_'
+         # notify_push reaches Nextcloud directly (same container), bypassing
+         # the edge proxy chain (Cloudflare) that strips x-forwarded-for.
+         NEXTCLOUD_URL: 'http://localhost'
+      # ----------------------------------------------------- #
+      ports:
+         - '8001:80/tcp'
+         - '7867:7867/tcp'
+      # ----------------------------------------------------- #
+      labels:
+         - 'traefik.enable=true'
+         - 'traefik.http.routers.nextcloud.rule=Host(`${NEXTCLOUD_DOMAIN}`)'
+         - 'traefik.http.routers.nextcloud.entrypoints=websecure'
+         - 'traefik.http.routers.nextcloud.tls=true'
+         - 'traefik.http.routers.nextcloud.tls.certresolver=cloudflare'
+         # Port reachable by the remote Traefik = the published host port
+         # (8001 -> container 80), not the container port.
+         - 'traefik.http.services.nextcloud.loadbalancer.server.port=8001'
+         # Explicit service binding: the container exposes two services
+         # (nextcloud + nextcloud-push), so the router cannot be auto-linked.
+         - 'traefik.http.routers.nextcloud.service=nextcloud'
+         - 'traefik.http.routers.nextcloud.middlewares=nextcloud-dav'
+         - 'traefik.http.middlewares.nextcloud-dav.replacepathregex.regex=^/.well-known/ca(l|rd)dav'
+         - 'traefik.http.middlewares.nextcloud-dav.replacepathregex.replacement=/remote.php/dav/'
+         # --- High Performance Backend (notify_push) on /push --- #
+         - 'traefik.http.routers.nextcloud-push.rule=Host(`${NEXTCLOUD_DOMAIN}`) && PathPrefix(`/push`)'
+         - 'traefik.http.routers.nextcloud-push.entrypoints=websecure'
+         - 'traefik.http.routers.nextcloud-push.tls=true'
+         - 'traefik.http.routers.nextcloud-push.tls.certresolver=cloudflare'
+         - 'traefik.http.routers.nextcloud-push.service=nextcloud-push'
+         - 'traefik.http.services.nextcloud-push.loadbalancer.server.port=7867'
+         - 'traefik.http.middlewares.nextcloud-push-strip.stripprefix.prefixes=/push'
+         - 'traefik.http.routers.nextcloud-push.middlewares=nextcloud-push-strip'
+         - 'kop.bind.ip=${KOP_BIND_HOST}'
+      # ----------------------------------------------------- #
+      networks:
+         - 'nextcloud_net'
+      # ----------------------------------------------------- #
+      volumes:
+         - '${DATA_ROOT}/html:/var/www/html'
+         - '${DATA_ROOT}/data:/var/www/html/data'
+      # ----------------------------------------------------- #
+      healthcheck:
+         test: ["CMD", "curl", "-k", "http://127.0.0.1"]
+         start_period: '5s'
+         interval: '10s'
+         timeout: '3s'
+         retries: 10
+###############################################################
+
+
+###############################################################
+   cn-nextcloud-collabora:
+      # ----------------------------------------------------- #
+      image: 'collabora/code:latest'
+      container_name: 'cn-nextcloud-collabora'
+      hostname: 'cn-nextcloud-collabora'
+      # ----------------------------------------------------- #
+      restart: 'always'
+      # ----------------------------------------------------- #
+      dns:
+         - '1.1.1.1'
+         - '1.0.0.1'
+      # ----------------------------------------------------- #
+      cap_add:
+         - 'MKNOD'
+      # ----------------------------------------------------- #
+      environment:
+         PUID: 1000
+         PGID: 1000
+         TZ: 'Europe/Paris'
+         # -------------------------------------------------- #
+         username: '${COLLABORA_USERNAME}'
+         password: '${COLLABORA_PASSWORD}'
+         # WOPI allow-list: Collabora only serves this Nextcloud host, so its
+         # API (incl. convert-to) cannot be used by anyone else.
+         aliasgroup1: 'https://${NEXTCLOUD_DOMAIN}:443'
+         # Collabora's own public hostname
+         server_name: '${COLLABORA_DOMAIN}'
+         # TLS is terminated at the edge proxy -> Collabora serves plain HTTP
+         extra_params: '--o:ssl.enable=false --o:ssl.termination=true'
+      # ----------------------------------------------------- #
+      deploy:
+         resources:
+            limits:
+               cpus: '1'
+               memory: '1024M'
+      # ----------------------------------------------------- #
+      ports:
+         - '9980:9980/tcp'
+      # ----------------------------------------------------- #
+      labels:
+         - 'traefik.enable=true'
+         - 'traefik.http.routers.collabora.rule=Host(`${COLLABORA_DOMAIN}`)'
+         - 'traefik.http.routers.collabora.entrypoints=websecure'
+         - 'traefik.http.routers.collabora.tls=true'
+         - 'traefik.http.routers.collabora.tls.certresolver=cloudflare'
+         - 'traefik.http.services.collabora.loadbalancer.server.port=9980'
+         - 'kop.bind.ip=${KOP_BIND_HOST}'
+      # ----------------------------------------------------- #
+      networks:
+         - 'nextcloud_net'
+      # ----------------------------------------------------- #
+      volumes:
+         - '${DATA_ROOT}/collabora-fonts:/usr/share/fonts/truetype/custom'
+         - '${DATA_ROOT}/collabora-fonts:/opt/collaboraoffice/share/fonts/truetype/custom'
+###############################################################
+
+
+###############################################################
+   cn-nextcloud-postgres:
+      # ----------------------------------------------------- #
+      image: 'postgres:16-alpine'
+      container_name: 'cn-nextcloud-postgres'
+      hostname: 'cn-nextcloud-postgres'
+      # ----------------------------------------------------- #
+      restart: 'always'
+      shm_size: '128mb'
+      # ----------------------------------------------------- #
+      dns:
+         - '1.1.1.1'
+         - '1.0.0.1'
+      # ----------------------------------------------------- #
+      deploy:
+         resources:
+            limits:
+               cpus: '0.5'
+               memory: '512M'
+      # ----------------------------------------------------- #
+      environment:
+         PUID: 1000
+         PGID: 1000
+         TZ: 'Europe/Paris'
+         # -------------------------------------------------- #
+         POSTGRES_DB: 'nextcloud'
+         POSTGRES_USER: 'nextcloud'
+         POSTGRES_PASSWORD: '${POSTGRES_PASSWORD}'
+      # ----------------------------------------------------- #
+      expose:
+         - '5432'
+      # ----------------------------------------------------- #
+      networks:
+         nextcloud_net:
+            aliases:
+               - 'db'
+      # ----------------------------------------------------- #
+      volumes:
+         - '${DATA_ROOT}/postgres:/var/lib/postgresql/data'
+      # ----------------------------------------------------- #
+      healthcheck:
+         test: ["CMD-SHELL", "sh -c 'pg_isready -U nextcloud -d nextcloud'"]
+         interval: '10s'
+         timeout: '3s'
+         retries: 3
+###############################################################
+
+
+###############################################################
+   cn-nextcloud-redis:
+      # ----------------------------------------------------- #
+      image: 'redis:alpine'
+      container_name: 'cn-nextcloud-redis'
+      hostname: 'cn-nextcloud-redis'
+      # ----------------------------------------------------- #
+      restart: 'always'
+      command: 'redis-server --save 20 1 --loglevel warning --requirepass ${REDIS_PASSWORD}'
+      # ----------------------------------------------------- #
+      dns:
+         - '1.1.1.1'
+         - '1.0.0.1'
+      # ----------------------------------------------------- #
+      deploy:
+         resources:
+            limits:
+               cpus: '0.5'
+               memory: '512M'
+      # ----------------------------------------------------- #
+      environment:
+         PUID: 1000
+         PGID: 1000
+         TZ: 'Europe/Paris'
+      # ----------------------------------------------------- #
+      expose:
+         - '6379'
+      # ----------------------------------------------------- #
+      networks:
+         nextcloud_net:
+            aliases:
+               - 'redis'
+      # ----------------------------------------------------- #
+      volumes:
+         - '${DATA_ROOT}/redis:/data'
+      # ----------------------------------------------------- #
+      healthcheck:
+         test: [ "CMD", "redis-cli", "--raw", "incr", "ping" ]
+         interval: '10s'
+         timeout: '3s'
+         retries: 3
+###############################################################
+
+
+#########
+networks:
+#########
+   nextcloud_net:
+      name: 'nextcloud_net'
+      driver: 'bridge'

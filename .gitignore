@@ -1,0 +1,9 @@
+# Secrets — never on GitHub
+.env
+
+# Runtime data / possible local volumes
+data/
+html/
+postgres/
+redis/
+collabora-fonts/
