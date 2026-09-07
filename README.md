@@ -29,6 +29,25 @@ gitignored. To start from scratch:
 cp .env.example .env   # then fill in the real values
 ```
 
+## Office editors (Collabora + OnlyOffice)
+
+Two editors run side by side, split by format:
+
+- **Collabora** (`collabora/code`) → ODF (`.odt/.ods/.odp`). It only serves this
+  Nextcloud host (WOPI allow-list) and its admin console is behind a password.
+- **OnlyOffice** (`onlyoffice/documentserver`) → OOXML (`.docx/.xlsx/.pptx`),
+  which it renders with higher fidelity than LibreOffice. Every Nextcloud <->
+  Document Server request is signed with `ONLYOFFICE_JWT_SECRET`.
+
+The `richdocuments` and `onlyoffice` connectors are wired automatically by the
+hooks (`hooks/*/*-onlyoffice.sh`, `*-richdocuments.sh`) from `.env`.
+
+> **Format split (one-time, live):** both apps register as editors for office
+> mimetypes, so the default per format is finalized in the OnlyOffice admin page
+> (`/settings/admin/onlyoffice`): keep OOXML in its *editable formats*, remove
+> `odt/ods/odp` so Collabora keeps ODF. This is version-specific, hence tuned on
+> the running instance rather than hardcoded.
+
 ## Deployment
 
 ```sh

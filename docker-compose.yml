@@ -19,8 +19,8 @@ services:
       deploy:
          resources:
             limits:
-               cpus: '1'
-               memory: '1024M'
+               cpus: '2'
+               memory: '4096M'
       # ----------------------------------------------------- #
       depends_on:
          cn-nextcloud-postgres:
@@ -48,7 +48,7 @@ services:
          REDIS_HOST: 'redis'
          REDIS_HOST_PASSWORD: '${REDIS_PASSWORD}'
          # -------------------------------------------------- #
-         PHP_MEMORY_LIMIT: '4096M'
+         PHP_MEMORY_LIMIT: '2048M'
          PHP_UPLOAD_LIMIT: '16384M'
          APACHE_BODY_LIMIT: '0'
          # -------------------------------------------------- #
@@ -62,9 +62,11 @@ services:
          # -------------------------------------------------- #
          NEXTCLOUD_DEFAULT_PHONE_REGION: 'FR'
          NEXTCLOUD_MAINTENANCE_WINDOW_START: '1'
-         # Passed through so the richdocuments hook can wire the connector
-         # to this stack's Collabora, generically, at deploy time.
+         # Passed through so the office hooks can wire the connectors to this
+         # stack's Collabora / OnlyOffice, generically, at deploy time.
          COLLABORA_DOMAIN: '${COLLABORA_DOMAIN}'
+         ONLYOFFICE_DOMAIN: '${ONLYOFFICE_DOMAIN}'
+         ONLYOFFICE_JWT_SECRET: '${ONLYOFFICE_JWT_SECRET}'
          # --- High Performance Backend (notify_push) --------- #
          # Consumed by supervisord.conf (%(ENV_...)s).
          NOTIFY_PUSH_PORT: '7867'
@@ -86,10 +88,13 @@ services:
          # Port reachable by the remote Traefik = the published host port
          # (8001 -> container 80), not the container port.
          - 'traefik.http.services.nextcloud.loadbalancer.server.port=8001'
+         # HSTS (setupchecks wants >= 15552000s); attached to the router below.
+         - 'traefik.http.middlewares.nextcloud-hsts.headers.stsSeconds=15552000'
+         - 'traefik.http.middlewares.nextcloud-hsts.headers.stsIncludeSubdomains=true'
          # Explicit service binding: the container exposes two services
          # (nextcloud + nextcloud-push), so the router cannot be auto-linked.
          - 'traefik.http.routers.nextcloud.service=nextcloud'
-         - 'traefik.http.routers.nextcloud.middlewares=nextcloud-dav'
+         - 'traefik.http.routers.nextcloud.middlewares=nextcloud-dav,nextcloud-hsts'
          - 'traefik.http.middlewares.nextcloud-dav.replacepathregex.regex=^/.well-known/ca(l|rd)dav'
          - 'traefik.http.middlewares.nextcloud-dav.replacepathregex.replacement=/remote.php/dav/'
          # --- High Performance Backend (notify_push) on /push --- #
@@ -174,6 +179,54 @@ services:
       volumes:
          - '${DATA_ROOT}/collabora-fonts:/usr/share/fonts/truetype/custom'
          - '${DATA_ROOT}/collabora-fonts:/opt/collaboraoffice/share/fonts/truetype/custom'
+###############################################################
+
+
+###############################################################
+   cn-nextcloud-onlyoffice:
+      # ----------------------------------------------------- #
+      # Document Server for OOXML (docx/xlsx/pptx). Collabora keeps ODF.
+      image: 'onlyoffice/documentserver:latest'
+      container_name: 'cn-nextcloud-onlyoffice'
+      hostname: 'cn-nextcloud-onlyoffice'
+      # ----------------------------------------------------- #
+      restart: 'always'
+      # ----------------------------------------------------- #
+      dns:
+         - '1.1.1.1'
+         - '1.0.0.1'
+      # ----------------------------------------------------- #
+      environment:
+         TZ: 'Europe/Paris'
+         # JWT signs every request between Nextcloud and the Document Server
+         JWT_ENABLED: 'true'
+         JWT_SECRET: '${ONLYOFFICE_JWT_SECRET}'
+         JWT_HEADER: 'Authorization'
+      # ----------------------------------------------------- #
+      deploy:
+         resources:
+            limits:
+               cpus: '2'
+               memory: '3072M'
+      # ----------------------------------------------------- #
+      ports:
+         - '8082:80/tcp'
+      # ----------------------------------------------------- #
+      labels:
+         - 'traefik.enable=true'
+         - 'traefik.http.routers.onlyoffice.rule=Host(`${ONLYOFFICE_DOMAIN}`)'
+         - 'traefik.http.routers.onlyoffice.entrypoints=websecure'
+         - 'traefik.http.routers.onlyoffice.tls=true'
+         - 'traefik.http.routers.onlyoffice.tls.certresolver=cloudflare'
+         - 'traefik.http.services.onlyoffice.loadbalancer.server.port=8082'
+         - 'kop.bind.ip=${KOP_BIND_HOST}'
+      # ----------------------------------------------------- #
+      networks:
+         - 'nextcloud_net'
+      # ----------------------------------------------------- #
+      volumes:
+         - '${DATA_ROOT}/onlyoffice/data:/var/www/onlyoffice/Data'
+         - '${DATA_ROOT}/onlyoffice/log:/var/log/onlyoffice'
 ###############################################################
 
 
