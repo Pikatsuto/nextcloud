@@ -139,7 +139,11 @@ services:
          - '1.0.0.1'
       # ----------------------------------------------------- #
       cap_add:
+         # coolmount needs CAP_SYS_ADMIN to mount the LibreOffice jail tree
+         # (fast). Without it Collabora falls back to copying every jail ->
+         # constant disk/CPU churn and slow document opens.
          - 'MKNOD'
+         - 'SYS_ADMIN'
       # ----------------------------------------------------- #
       environment:
          PUID: 1000
