@@ -27,6 +27,8 @@ run_occ "config:app:set richdocuments public_wopi_url --value=${WOPI_URL}"
 if [ -n "${WOPI_ALLOWLIST:-}" ]; then
    run_occ "config:app:set richdocuments wopi_allowlist --value=${WOPI_ALLOWLIST}"
 fi
+   # Collabora handles ODF, not OOXML (OnlyOffice does OOXML) -> default new docs to ODF
+   run_occ "config:app:set richdocuments doc_format --value=odf"
 run_occ "richdocuments:activate-config" || true
 
 echo "==> [hook] richdocuments wired to ${WOPI_URL}"

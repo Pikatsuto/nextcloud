@@ -41,6 +41,8 @@ if [ -n "${WOPI_ALLOWLIST:-}" ]; then
 fi
 
 # Fetch discovery and apply
+   # Collabora handles ODF, not OOXML (OnlyOffice does OOXML) -> default new docs to ODF
+   run_occ "config:app:set richdocuments doc_format --value=odf"
 run_occ "richdocuments:activate-config" || true
 
 echo "==> [hook] richdocuments wired to ${WOPI_URL}"
