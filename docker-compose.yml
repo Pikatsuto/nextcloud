@@ -128,7 +128,7 @@ services:
 ###############################################################
    cn-nextcloud-collabora:
       # ----------------------------------------------------- #
-      image: 'collabora/code:24.04.13.3.1'
+      image: 'collabora/code:latest'
       container_name: 'cn-nextcloud-collabora'
       hostname: 'cn-nextcloud-collabora'
       # ----------------------------------------------------- #
