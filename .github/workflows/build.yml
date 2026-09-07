@@ -2,7 +2,7 @@ name: build-and-push
 
 # Rebuilds the image and pushes it to GHCR:
 #   - once a month (picks up base nextcloud:production-apache updates)
-#   - on every push touching the recipe (Dockerfile / hooks / supervisord)
+#   - on every push to main
 #   - manually (workflow_dispatch)
 # Watchtower, on the server, detects the new digest and updates on its own.
 
@@ -11,11 +11,6 @@ on:
     - cron: '0 4 1 * *'        # 1st of every month, 04:00 UTC
   push:
     branches: [ main ]
-    paths:
-      - 'Dockerfile'
-      - 'supervisord.conf'
-      - 'hooks/**'
-      - '.github/workflows/build.yml'
   workflow_dispatch:
 
 permissions:
