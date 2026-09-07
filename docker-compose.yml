@@ -128,7 +128,7 @@ services:
 ###############################################################
    cn-nextcloud-collabora:
       # ----------------------------------------------------- #
-      image: 'collabora/code:latest'
+      image: 'collabora/code:24.04.13.3.1'
       container_name: 'cn-nextcloud-collabora'
       hostname: 'cn-nextcloud-collabora'
       # ----------------------------------------------------- #
@@ -192,7 +192,7 @@ services:
    cn-nextcloud-onlyoffice:
       # ----------------------------------------------------- #
       # Document Server for OOXML (docx/xlsx/pptx). Collabora keeps ODF.
-      image: 'onlyoffice/documentserver:latest'
+      image: 'onlyoffice/documentserver:9.4'
       container_name: 'cn-nextcloud-onlyoffice'
       hostname: 'cn-nextcloud-onlyoffice'
       # ----------------------------------------------------- #
@@ -288,7 +288,7 @@ services:
 ###############################################################
    cn-nextcloud-redis:
       # ----------------------------------------------------- #
-      image: 'redis:alpine'
+      image: 'redis:8-alpine'
       container_name: 'cn-nextcloud-redis'
       hostname: 'cn-nextcloud-redis'
       # ----------------------------------------------------- #
