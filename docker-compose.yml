@@ -107,6 +107,7 @@ services:
          - 'traefik.http.middlewares.nextcloud-push-strip.stripprefix.prefixes=/push'
          - 'traefik.http.routers.nextcloud-push.middlewares=nextcloud-push-strip'
          - 'kop.bind.ip=${KOP_BIND_HOST}'
+         - 'kop.namespace=stack'
       # ----------------------------------------------------- #
       networks:
          - 'nextcloud_net'
@@ -172,6 +173,7 @@ services:
          - 'traefik.http.routers.collabora.tls.certresolver=cloudflare'
          - 'traefik.http.services.collabora.loadbalancer.server.port=9980'
          - 'kop.bind.ip=${KOP_BIND_HOST}'
+         - 'kop.namespace=stack'
       # ----------------------------------------------------- #
       networks:
          - 'nextcloud_net'
@@ -220,6 +222,7 @@ services:
          - 'traefik.http.routers.onlyoffice.tls.certresolver=cloudflare'
          - 'traefik.http.services.onlyoffice.loadbalancer.server.port=8082'
          - 'kop.bind.ip=${KOP_BIND_HOST}'
+         - 'kop.namespace=stack'
       # ----------------------------------------------------- #
       networks:
          - 'nextcloud_net'
