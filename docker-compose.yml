@@ -145,6 +145,13 @@ services:
          - 'MKNOD'
          - 'SYS_ADMIN'
       # ----------------------------------------------------- #
+      # Docker's default AppArmor profile blocks the mount() the jail bind-mount
+      # needs, so coolmount can't create the mount namespace (adms_namespaces=
+      # false) and falls back to slow per-jail copying. Unconfine AppArmor for
+      # this single container (still capability-scoped) to restore fast jails.
+      security_opt:
+         - 'apparmor:unconfined'
+      # ----------------------------------------------------- #
       environment:
          PUID: 1000
          PGID: 1000
