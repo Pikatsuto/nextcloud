@@ -225,6 +225,13 @@ services:
          - 'traefik.http.routers.onlyoffice.tls=true'
          - 'traefik.http.routers.onlyoffice.tls.certresolver=cloudflare'
          - 'traefik.http.services.onlyoffice.loadbalancer.server.port=8082'
+         # TLS is terminated at the edge proxy, which does not tag the WebSocket
+         # upgrade with the original scheme, so the Document Server builds its
+         # cache/Editor.bin URLs as http:// -> the https editor then blocks them
+         # as mixed content ("download failed"). Force the proxied protocol to
+         # https (OnlyOffice's equivalent of Collabora's ssl.termination=true).
+         - 'traefik.http.middlewares.onlyoffice-httpsproto.headers.customrequestheaders.X-Forwarded-Proto=https'
+         - 'traefik.http.routers.onlyoffice.middlewares=onlyoffice-httpsproto'
          - 'kop.bind.ip=${KOP_BIND_HOST}'
          - 'kop.namespace=stack'
       # ----------------------------------------------------- #
