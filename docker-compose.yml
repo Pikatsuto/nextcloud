@@ -126,6 +126,62 @@ services:
 
 
 ###############################################################
+   cn-nextcloud-fonts-seed:
+      # ----------------------------------------------------- #
+      # One-shot seed that fills the shared font store with Windows-compatible
+      # fonts, so Collabora and OnlyOffice paginate MS Office documents the same
+      # way. Real Windows 11 fonts (Segoe UI, genuine Calibri) are proprietary
+      # and not redistributable, so this uses the reliably-packaged set: the MS
+      # core web fonts (Arial, Times New Roman, Courier New, ...) plus Carlito
+      # (= Calibri) and Caladea (= Cambria) and Liberation as metric-compatible
+      # substitutes.
+      #
+      # IDEMPOTENT: if the store already holds fonts it exits immediately, so it
+      # never re-downloads and never overwrites an existing (populated) folder.
+      # The office apps depend on its successful completion before they start.
+      # ----------------------------------------------------- #
+      image: 'debian:stable-slim'
+      container_name: 'cn-nextcloud-fonts-seed'
+      restart: 'no'
+      # ----------------------------------------------------- #
+      environment:
+         DEBIAN_FRONTEND: 'noninteractive'
+      # ----------------------------------------------------- #
+      volumes:
+         - '${DATA_ROOT}/fonts:/fonts'
+      # ----------------------------------------------------- #
+      networks:
+         - 'nextcloud_net'
+      # ----------------------------------------------------- #
+      command:
+         - 'sh'
+         - '-euc'
+         - |
+           if find /fonts -maxdepth 1 -type f \( -iname '*.ttf' -o -iname '*.otf' \) | grep -q .; then
+              echo "==> font store already populated, nothing to do"
+              exit 0
+           fi
+           echo "==> seeding fonts (long on first run: downloads the MS core fonts)"
+           # Enable the 'contrib' component (ttf-mscorefonts-installer lives there),
+           # covering both the deb822 and the legacy sources.list layouts.
+           if [ -f /etc/apt/sources.list.d/debian.sources ]; then
+              sed -i 's/^Components: .*/Components: main contrib/' /etc/apt/sources.list.d/debian.sources
+           elif [ -f /etc/apt/sources.list ]; then
+              sed -i 's/ main *$/ main contrib/' /etc/apt/sources.list
+           fi
+           echo 'ttf-mscorefonts-installer ttf-mscorefonts-installer/accepted-mscorefonts-eula select true' | debconf-set-selections
+           apt-get update
+           apt-get install -y --no-install-recommends \
+              ca-certificates cabextract \
+              ttf-mscorefonts-installer \
+              fonts-crosextra-carlito fonts-crosextra-caladea fonts-liberation2
+           # Flatten every installed face into the shared store; -n never clobbers.
+           find /usr/share/fonts -type f \( -iname '*.ttf' -o -iname '*.otf' \) -exec cp -n {} /fonts/ \;
+           echo "==> seeded $(ls -1 /fonts | wc -l) font files"
+###############################################################
+
+
+###############################################################
    cn-nextcloud-collabora:
       # ----------------------------------------------------- #
       image: 'collabora/code:latest'
@@ -137,6 +193,10 @@ services:
       dns:
          - '1.1.1.1'
          - '1.0.0.1'
+      # ----------------------------------------------------- #
+      depends_on:
+         cn-nextcloud-fonts-seed:
+            condition: 'service_completed_successfully'
       # ----------------------------------------------------- #
       cap_add:
          # coolmount needs CAP_SYS_ADMIN to mount the LibreOffice jail tree
@@ -190,8 +250,8 @@ services:
          - 'nextcloud_net'
       # ----------------------------------------------------- #
       volumes:
-         - '${DATA_ROOT}/collabora-fonts:/usr/share/fonts/truetype/custom'
-         - '${DATA_ROOT}/collabora-fonts:/opt/collaboraoffice/share/fonts/truetype/custom'
+         - '${DATA_ROOT}/fonts:/usr/share/fonts/truetype/custom:ro'
+         - '${DATA_ROOT}/fonts:/opt/collaboraoffice/share/fonts/truetype/custom:ro'
 ###############################################################
 
 
@@ -208,6 +268,10 @@ services:
       dns:
          - '1.1.1.1'
          - '1.0.0.1'
+      # ----------------------------------------------------- #
+      depends_on:
+         cn-nextcloud-fonts-seed:
+            condition: 'service_completed_successfully'
       # ----------------------------------------------------- #
       environment:
          TZ: 'Europe/Paris'
@@ -248,6 +312,10 @@ services:
       volumes:
          - '${DATA_ROOT}/onlyoffice/data:/var/www/onlyoffice/Data'
          - '${DATA_ROOT}/onlyoffice/log:/var/log/onlyoffice'
+         # Windows-compatible fonts (seeded once, shared with Collabora). The
+         # entrypoint runs documentserver-generate-allfonts.sh on start, so they
+         # are picked up automatically.
+         - '${DATA_ROOT}/fonts:/usr/share/fonts/truetype/custom:ro'
 ###############################################################
 
 
