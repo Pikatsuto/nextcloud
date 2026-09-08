@@ -31,6 +31,10 @@ run_occ "config:app:set onlyoffice DocumentServerUrl --value=https://${ONLYOFFIC
 # Internal URL: Nextcloud <-> Document Server on the same docker network,
 # bypassing the edge proxy (Cloudflare).
 run_occ "config:app:set onlyoffice DocumentServerInternalUrl --value=http://cn-nextcloud-onlyoffice/"
+# Storage URL: the address the Document Server calls back to reach Nextcloud
+# (document download + track). Derive this container's own name from $(hostname)
+# so the callback stays on the docker network (no WAN round-trip, no hardcode).
+run_occ "config:app:set onlyoffice StorageUrl --value=http://$(hostname)/"
 # Shared JWT secret (must match the Document Server's JWT_SECRET).
 run_occ "config:app:set onlyoffice jwt_secret --value=${ONLYOFFICE_JWT_SECRET}"
 run_occ "config:app:set onlyoffice jwt_header --value=Authorization"

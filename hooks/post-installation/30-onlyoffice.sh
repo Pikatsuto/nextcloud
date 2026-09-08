@@ -21,6 +21,10 @@ fi
 run_occ "app:install onlyoffice" || run_occ "app:enable onlyoffice" || true
 run_occ "config:app:set onlyoffice DocumentServerUrl --value=https://${ONLYOFFICE_DOMAIN}/"
 run_occ "config:app:set onlyoffice DocumentServerInternalUrl --value=http://cn-nextcloud-onlyoffice/"
+# Storage URL: the address the Document Server calls back to reach Nextcloud
+# (document download + track). Derive this container's own name from $(hostname)
+# so the callback stays on the docker network (no WAN round-trip, no hardcode).
+run_occ "config:app:set onlyoffice StorageUrl --value=http://$(hostname)/"
 run_occ "config:app:set onlyoffice jwt_secret --value=${ONLYOFFICE_JWT_SECRET}"
 run_occ "config:app:set onlyoffice jwt_header --value=Authorization"
 
